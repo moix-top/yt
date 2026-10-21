@@ -1,2 +1,5 @@
 android-yt.jks
 *.jks
+
+# Fotos de la tele: llevan número de serie, MAC, ESN e ID de Widevine
+tv/*.jpg
