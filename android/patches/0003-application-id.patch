@@ -1,0 +1,16 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 74e8ebd..79a45c0 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -39,8 +39,9 @@ configure<ApplicationExtension> {
+     namespace = NEWPIPE_APPLICATION_ID_OLD
+ 
+     defaultConfig {
+-        applicationId = NEWPIPE_APPLICATION_ID_OLD
+-        resValue("string", "app_name", "NewPipe")
++        // yt: id propio para convivir con NewPipe oficial instalado
++        applicationId = "top.moix.yt"
++        resValue("string", "app_name", "yt")
+         minSdk {
+             version = release(NEWPIPE_VERSION_SDK_MIN)
+         }

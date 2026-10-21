@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Tabla DynamoDB de yt (lista por ver, vistos y posición de reproducción, por usuario).
+
+Parameters:
+  TableName:
+    Type: String
+    Default: yt-data
+    Description: Nombre de la tabla DynamoDB.
+
+Resources:
+  YtTable:
+    Type: AWS::DynamoDB::Table
+    # Retain: borrar el stack nunca borra el historial.
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Ref TableName
+      DeletionProtectionEnabled: true
+      # Single-table design, igual que wealth. Dos tipos de partición:
+      #   USER#<email>        → los vídeos del usuario y sus tokens de sincronización
+      #   TOKEN#<sha256>      → índice inverso token → usuario, para la API del APK
+      # La segunda solo se lee con GetItem por el hash exacto: no hay forma de
+      # enumerarla. PAY_PER_REQUEST = coste 0 sin tráfico.
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+Outputs:
+  TableName:
+    Description: Nombre de la tabla (ponlo como DYNAMODB_TABLE en Vercel).
+    Value: !Ref YtTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TableName'
+  TableArn:
+    Description: ARN de la tabla (para acotar la política IAM).
+    Value: !GetAtt YtTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TableArn'

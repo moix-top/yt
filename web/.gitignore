@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+*.log
+.DS_Store
+.vercel
+next-env.d.ts
+
+# tsc --noEmit deja este artefacto
+tsconfig.tsbuildinfo
+

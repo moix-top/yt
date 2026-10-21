@@ -1,0 +1,13 @@
+diff --git a/app/src/main/java/org/schabi/newpipe/App.kt b/app/src/main/java/org/schabi/newpipe/App.kt
+index 3ca2595..a660cb6 100644
+--- a/app/src/main/java/org/schabi/newpipe/App.kt
++++ b/app/src/main/java/org/schabi/newpipe/App.kt
+@@ -95,6 +95,8 @@ open class App :
+ 
+         // Initialize settings first because other initializations can use its values
+         NewPipeSettings.initSettings(this)
++        // yt: sincronización con yt.moix.top (android/overlay en moix-top/yt)
++        org.schabi.newpipe.ytsync.YtSync.init(this)
+ 
+         NewPipe.init(
+             getDownloader(),

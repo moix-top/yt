@@ -1,0 +1,42 @@
+name: Deploy infra (DynamoDB)
+
+# Mismo esquema que wealth: se lanza a mano o cuando cambia la plantilla.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'web/infra/**'
+      - '.github/workflows/deploy-infra.yml'
+
+env:
+  AWS_REGION: eu-west-1
+  STACK_NAME: yt-data
+  TABLE_NAME: yt-data
+
+concurrency:
+  group: deploy-infra
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: aws cloudformation validate-template --template-body file://web/infra/dynamodb.yml
+      - run: |
+          aws cloudformation deploy \
+            --template-file web/infra/dynamodb.yml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides TableName="$TABLE_NAME" \
+            --no-fail-on-empty-changeset
+      - run: |
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' --output table

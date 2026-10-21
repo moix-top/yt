@@ -1,0 +1,17 @@
+diff --git a/app/src/main/res/xml/main_settings.xml b/app/src/main/res/xml/main_settings.xml
+index 5f96989..544f516 100644
+--- a/app/src/main/res/xml/main_settings.xml
++++ b/app/src/main/res/xml/main_settings.xml
+@@ -4,6 +4,12 @@
+     android:key="general_preferences"
+     android:title="@string/settings">
+ 
++    <PreferenceScreen
++        android:fragment="org.schabi.newpipe.ytsync.SyncSettingsFragment"
++        android:icon="@drawable/ic_cloud"
++        android:title="Sincronización yt.moix.top"
++        app:iconSpaceReserved="false" />
++
+     <PreferenceScreen
+         android:fragment="org.schabi.newpipe.settings.VideoAudioSettingsFragment"
+         android:icon="@drawable/ic_headset"
