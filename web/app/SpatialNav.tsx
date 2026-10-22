@@ -62,8 +62,13 @@ export default function SpatialNav() {
       const dir = DIRS[e.key];
       if (!dir || e.altKey || e.ctrlKey || e.metaKey) return;
       document.documentElement.dataset.input = "keys";
-      // En un campo de texto las flechas laterales mueven el cursor.
-      if (typing && dir[0] !== 0) return;
+      // En un campo de texto las flechas laterales mueven el cursor, salvo que
+      // ya esté en el extremo: entonces saltan al elemento de al lado.
+      if (typing && dir[0] !== 0) {
+        const { selectionStart: s, selectionEnd: end, value } = active;
+        const atEdge = s === end && (dir[0] > 0 ? end === value.length : s === 0);
+        if (!atEdge) return;
+      }
 
       const from = active && active !== document.body ? active : null;
       const next = from
