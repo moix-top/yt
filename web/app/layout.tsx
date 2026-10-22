@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import SpatialNav from "./SpatialNav";
 
 // Las páginas leen la sesión: nada de prerender estático (además el build de
 // CI no tiene variables AUTH_*).
@@ -22,7 +23,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <SpatialNav />
+        {children}
+      </body>
     </html>
   );
 }

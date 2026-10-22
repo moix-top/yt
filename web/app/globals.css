@@ -64,7 +64,7 @@ button:disabled { opacity: 0.6; }
 .title { font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .sub { color: var(--muted); font-size: 0.85rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.actions button { min-height: 34px; padding: 0 10px; font-size: 0.85rem; }
+.actions button { min-height: var(--tap); padding: 0 12px; font-size: 0.85rem; }
 
 .player { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; }
 .player iframe, .player > div:first-child { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -79,6 +79,34 @@ button:disabled { opacity: 0.6; }
 .token-row { align-items: center; }
 .login { text-align: center; padding-top: 20vh; }
 
+/* Foco visible para teclado y mando; el ratón y el táctil no lo muestran. */
+:focus { outline: none; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.thumb:focus-visible { outline-offset: 2px; }
+
 @media (max-width: 560px) {
   .thumb { flex-basis: 120px; }
 }
+
+/* Tablet y escritorio: más ancho y la lista en tarjetas de varias columnas. */
+@media (min-width: 820px) {
+  .shell { max-width: 1200px; padding-left: 24px; padding-right: 24px; }
+  .add { max-width: 760px; }
+  .list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .row { flex-direction: column; }
+  .thumb { flex-basis: auto; width: 100%; }}
+
+/* Smart TV: pantalla grande sin ratón (por media query, o tras usar las
+   flechas del mando). Todo más grande para leerlo desde el sofá y margen de
+   seguridad del 5 % por si la tele recorta los bordes (overscan). */
+@media (min-width: 1280px) and (hover: none) {
+  html { zoom: 1.5; }
+  .shell { max-width: none; padding: 3vh 5vw; }
+}
+@media (min-width: 1280px) {
+  html[data-input="keys"] { zoom: 1.5; }
+  html[data-input="keys"] .shell { max-width: none; padding: 3vh 5vw; }
+  html[data-input="keys"] :focus-visible { outline-width: 4px; }
+  html[data-input="keys"] .row:focus-within .thumb { transform: scale(1.04); }
+}
+.thumb { transition: transform 0.15s; }
