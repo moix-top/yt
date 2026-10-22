@@ -17,25 +17,37 @@ const DIRS: Record<string, [number, number]> = {
 };
 const BACK_KEYS = new Set(["GoBack", "BrowserBack", "Escape", "Backspace"]);
 
-function center(r: DOMRect) {
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-}
+// Margen para bordes que se tocan o se pisan por redondeo.
+const TOL = 2;
 
-// Candidato más cercano en la dirección (dx, dy). Se penaliza la desviación
-// lateral para que "abajo" prefiera lo que está justo debajo.
+// Siguiente elemento en la dirección (dx, dy), comparando bordes y no centros,
+// para que coincida con lo que se ve en pantalla:
+// - Solo cuentan los que están enteros en esa dirección (para "abajo", su
+//   borde superior por debajo del borde inferior del actual).
+// - Gana el de menor hueco; estar desplazado en el otro eje (no solaparse)
+//   pesa más, así "abajo" va a lo que está justo debajo y no en diagonal.
+// - Empate (p. ej. una fila de botones): el más alineado con el actual.
 function nearest(from: Element, dx: number, dy: number): HTMLElement | null {
-  const a = center(from.getBoundingClientRect());
+  const f = from.getBoundingClientRect();
   let best: HTMLElement | null = null;
   let bestScore = Infinity;
   for (const el of document.querySelectorAll<HTMLElement>(FOCUSABLE)) {
-    if (el === from) continue;
+    if (el === from || el.contains(from) || from.contains(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
-    const b = center(r);
-    const along = (b.x - a.x) * dx + (b.y - a.y) * dy;
-    if (along <= 1) continue;
-    const across = Math.abs((b.x - a.x) * dy + (b.y - a.y) * dx);
-    const score = along + across * 3;
+
+    let gap: number, offset: number, align: number;
+    if (dy !== 0) {
+      gap = dy > 0 ? r.top - f.bottom : f.top - r.bottom;
+      offset = Math.max(0, r.left - f.right, f.left - r.right);
+      align = Math.abs(r.left - f.left);
+    } else {
+      gap = dx > 0 ? r.left - f.right : f.left - r.right;
+      offset = Math.max(0, r.top - f.bottom, f.top - r.bottom);
+      align = Math.abs(r.top - f.top);
+    }
+    if (gap < -TOL) continue;
+    const score = Math.max(0, gap) + offset * 4 + align * 0.01;
     if (score < bestScore) {
       bestScore = score;
       best = el;

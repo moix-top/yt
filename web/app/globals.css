@@ -106,7 +106,18 @@ button:disabled { opacity: 0.6; }
 @media (min-width: 1280px) {
   html[data-input="keys"] { zoom: 1.5; }
   html[data-input="keys"] .shell { max-width: none; padding: 3vh 5vw; }
-  html[data-input="keys"] :focus-visible { outline-width: 4px; }
-  html[data-input="keys"] .row:focus-within .thumb { transform: scale(1.04); }
 }
+/* Modo mando (cualquier tamaño): el foco se marca siempre, aunque el navegador
+   de la tele no active :focus-visible con un foco puesto por script. */
+html[data-input="keys"] :focus {
+  outline: 4px solid var(--accent); outline-offset: 3px;
+}
+html[data-input="keys"] button:focus,
+html[data-input="keys"] .title:focus,
+html[data-input="keys"] .link-muted:focus {
+  background: var(--accent); color: #fff; border-radius: 6px;
+}
+/* Solo crece la miniatura enfocada, no la de la fila entera: así no parece
+   seleccionado el vídeo cuando el foco está en uno de sus botones. */
+html[data-input="keys"] .thumb:focus { transform: scale(1.04); }
 .thumb { transition: transform 0.15s; }
