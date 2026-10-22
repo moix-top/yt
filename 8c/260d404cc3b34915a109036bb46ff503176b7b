@@ -1,0 +1,19 @@
+web/app/ajustes/page.tsx
+  s_149890d0eacf90::t_de0ed5f8ab2c43 63-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c260d404cc3b34915a109036bb46ff503176b7b",
+  "prompts": {},
+  "sessions": {
+    "s_149890d0eacf90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7ec5edc-4de8-49d4-a93a-c9c7312e88ac",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Raul Adamuz <radamuzc@gmail.com>"
+    }
+  }
+}
