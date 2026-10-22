@@ -60,6 +60,11 @@ export default function Ajustes() {
         Para sincronizar el APK, crea un token y pégalo en la app: <em>Ajustes → Sincronización
         yt.moix.top</em>. Cada token da acceso completo a tu lista; si pierdes el móvil, revócalo.
       </p>
+      <p className="muted">
+        <a href="https://github.com/moix-top/yt/releases/latest" target="_blank" rel="noopener noreferrer">
+          Descargar la última versión del APK
+        </a>
+      </p>
 
       <form className="add" onSubmit={create}>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre (p. ej. Pixel)" />
