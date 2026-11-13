@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { fmtTime, thumb, useLibrary } from "@/lib/useLibrary";
 import type { Video } from "@/lib/types";
+import { downloadsEnabled } from "@/lib/downloads/options";
 
 type Tab = "queue" | "progress" | "watched";
 
@@ -66,9 +67,16 @@ export default function Home() {
     <main className="shell">
       <header className="top">
         <h1>yt</h1>
-        <Link href="/ajustes" className="link-muted">
-          Dispositivos
-        </Link>
+        <nav className="top-links">
+          {downloadsEnabled && (
+            <Link href="/descargas" className="link-muted">
+              Descargas
+            </Link>
+          )}
+          <Link href="/ajustes" className="link-muted">
+            Dispositivos
+          </Link>
+        </nav>
       </header>
 
       <form className="add" onSubmit={add}>

@@ -8,7 +8,8 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const FOCUSABLE = "a[href], button:not(:disabled), input, iframe, [tabindex]:not([tabindex='-1'])";
+const FOCUSABLE =
+  "a[href], button:not(:disabled), input, select, summary, iframe, [tabindex]:not([tabindex='-1'])";
 const DIRS: Record<string, [number, number]> = {
   ArrowUp: [0, -1],
   ArrowDown: [0, 1],

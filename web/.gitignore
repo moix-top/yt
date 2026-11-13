@@ -8,6 +8,9 @@ out/
 .vercel
 next-env.d.ts
 
+# yt-dlp propio de la página de Descargas (scripts/update-yt-dlp.sh)
+.bin/
+
 # tsc --noEmit deja este artefacto
 tsconfig.tsbuildinfo
 

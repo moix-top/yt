@@ -32,6 +32,7 @@ button, input { font: inherit; color: inherit; }
 }
 .top { display: flex; justify-content: space-between; align-items: center; min-height: var(--tap); }
 .top h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.02em; }
+.top-links { display: flex; gap: 16px; }
 .link-muted { color: var(--muted); text-decoration: none; padding: 10px 0; }
 .muted { color: var(--muted); }
 .error { color: var(--accent); }
@@ -78,6 +79,26 @@ button:disabled { opacity: 0.6; }
 .token code { display: block; overflow-wrap: anywhere; margin-bottom: 8px; }
 .token-row { align-items: center; }
 .login { text-align: center; padding-top: 20vh; }
+
+/* Descargas (solo en local). */
+.dl-form .add { margin-bottom: 8px; }
+.dl-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button.on { background: var(--accent); color: #fff; }
+select {
+  font: inherit; color: inherit; min-height: var(--tap); padding: 0 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.dl-jobs { grid-template-columns: 1fr !important; }
+.dl-head { display: flex; gap: 12px; align-items: flex-start; }
+.dl-items { margin: 8px 0 0; padding-left: 1.6em; display: grid; gap: 4px; }
+.dl-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+.dl-item.done .dl-name, .dl-item.skipped .dl-name { color: var(--muted); }
+.dl-name { overflow-wrap: anywhere; }
+.dl-bar { grid-column: 1 / -1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.dl-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+summary { cursor: pointer; margin-top: 8px; min-height: 32px; display: list-item; }
 
 /* Foco visible para teclado y mando; el ratón y el táctil no lo muestran. */
 :focus { outline: none; }

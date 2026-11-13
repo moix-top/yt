@@ -49,11 +49,22 @@ sin revisión.
    (y `gh variable set GLM_MODEL` / `GLM_BASE_URL` si no son los de Z.ai por defecto).
 5. Actions → *Android (fork de NewPipe)* → Run workflow.
 
+## Descargas (solo en local)
+
+Con la web levantada en local aparece **Descargas**: pegas una lista, álbum o canción
+de YouTube Music (o YouTube) y la baja yt-dlp en **MP3** (128–320 kbps) o **MP4**
+(360p–4K), con título, artista y carátula, a `~/Descargas/yt/<lista>/`. Relanzar la
+misma lista solo baja lo nuevo. Necesita `ffmpeg` y Node; yt-dlp va en `web/.bin/`
+(`npm run yt-dlp:update`), porque el de apt se queda viejo y YouTube responde 403.
+En Vercel no existe. Variables en [web/.env.example](web/.env.example).
+
 ## Desarrollo
 
 ```bash
 cd web && npm install && npm test
 DEV_LOGIN_EMAIL=yo@example.com AUTH_SECRET=x npm run dev   # entra sin Google, solo en dev
+
+npm run yt-dlp:update                                       # yt-dlp al día para /descargas
 
 android/scripts/prepare.sh v0.29.1                          # árbol en android/upstream
 cd android/upstream && ./gradlew assembleDebug              # requiere JDK 21
