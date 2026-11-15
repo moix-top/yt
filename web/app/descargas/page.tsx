@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Job } from "@/lib/downloads/jobs";
 import type { Sync } from "@/lib/downloads/syncs";
+import SessionPicker from "./SessionPicker";
 import { DEFAULT_QUALITY, QUALITIES, downloadsEnabled, type Format } from "@/lib/downloads/options";
 
 const STATE: Record<Job["state"], string> = {
@@ -241,6 +242,8 @@ export default function Descargas() {
               ))}
             </ul>
           </section>
+
+          <SessionPicker />
 
           <h3>Descarga suelta</h3>
           <p className="muted">

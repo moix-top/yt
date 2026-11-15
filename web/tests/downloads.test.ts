@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArgs, isValidQuality, parseLine, parseSourceUrl } from "@/lib/downloads/options";
+import { buildArgs, isValidQuality, needsLogin, parseLine, parseSourceUrl } from "@/lib/downloads/options";
 
 describe("parseSourceUrl", () => {
   it.each([
@@ -37,12 +37,25 @@ describe("buildArgs", () => {
     expect(a[a.indexOf("--download-archive") + 1]).toBe("/m/Favoritas/.yt-sync-archive.txt");
   });
 
+  it("las opciones de sesión van antes del enlace", () => {
+    const a = buildArgs(url, "mp3", "320", "/d", "sync", ["--cookies-from-browser", "brave"]);
+    expect(a.indexOf("--cookies-from-browser")).toBeLessThan(a.indexOf("--"));
+  });
+
   it("MP4 limita la altura y une en mp4", () => {
     const a = buildArgs(url, "mp4", "720", "/d");
     expect(a[a.indexOf("-f") + 1]).toContain("height<=720");
     expect(a).toEqual(expect.arrayContaining(["--merge-output-format", "mp4"]));
     expect(buildArgs(url, "mp4", "best", "/d")[a.indexOf("-f") + 1]).not.toContain("height");
   });
+});
+
+describe("needsLogin", () => {
+  it.each([
+    ["[youtube:tab] LM: YouTube said: The playlist does not exist.", true],
+    ["[youtube] abc: Private video. Sign in if you've been granted access", true],
+    ["unable to download video data: HTTP Error 403: Forbidden", false],
+  ])("%s", (msg, expected) => expect(needsLogin(msg)).toBe(expected));
 });
 
 describe("parseLine", () => {

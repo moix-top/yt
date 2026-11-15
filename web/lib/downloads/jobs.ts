@@ -15,7 +15,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import { SYNC_ARCHIVE, buildArgs, parseLine, type Format } from "./options";
+import { sessionArgs } from "./cookies";
+import { SESSION_THROTTLE, SYNC_ARCHIVE, buildArgs, needsLogin, parseLine, type Format } from "./options";
 
 export type ItemStatus = "pending" | "downloading" | "done" | "skipped" | "error";
 
@@ -85,21 +86,38 @@ function run(args: string[], onLine: (line: string) => void, jobId?: string): Pr
   });
 }
 
-/** Título y pistas de la lista, sin descargar nada. */
-async function list(url: string): Promise<{ title: string; items: Item[] }> {
-  let json = "";
-  const errors: string[] = [];
-  const code = await run(["--flat-playlist", "-J", "--js-runtimes", "node", "--", url], (l) => {
-    if (l.startsWith("{")) json = l;
-    else if (l.startsWith("ERROR:")) errors.push(l.slice(7));
-  });
-  if (code !== 0 || !json) throw new Error(errors[0] ?? "No se pudo leer la lista");
+/**
+ * Título y pistas de la lista, sin descargar nada. Primero sin sesión; si
+ * YouTube dice que es privada y hay cookies configuradas, otra vez con ellas.
+ * `auth` son las opciones de sesión que habrá que usar también al descargar.
+ */
+async function list(url: string): Promise<{ title: string; items: Item[]; auth: string[] }> {
+  const attempt = async (auth: string[]) => {
+    let json = "";
+    const errors: string[] = [];
+    const code = await run(["--flat-playlist", "-J", "--js-runtimes", "node", ...auth, "--", url], (l) => {
+      if (l.startsWith("{")) json = l;
+      else if (l.startsWith("ERROR:")) errors.push(l.slice(7));
+    });
+    return { json: code === 0 ? json : "", error: errors[0] ?? "No se pudo leer la lista" };
+  };
+  let auth: string[] = [];
+  let { json, error } = await attempt(auth);
+  if (!json && needsLogin(error)) {
+    const session = sessionArgs();
+    if (!session.length)
+      throw new Error("Es una lista privada: elige arriba el navegador y perfil con tu sesión de YouTube");
+    ({ json, error } = await attempt(session));
+    auth = [...session, ...SESSION_THROTTLE];
+  }
+  if (!json) throw new Error(error);
   const j = JSON.parse(json) as { title?: string; id: string; entries?: { id: string; title?: string }[] };
   // Un vídeo suelto no trae `entries`: es una lista de uno.
   const entries = j.entries ?? [{ id: j.id, title: j.title }];
   return {
     title: j.title ?? url,
     items: entries.map((e) => ({ id: e.id, title: e.title ?? e.id, status: "pending", pct: 0 })),
+    auth,
   };
 }
 
@@ -155,7 +173,7 @@ async function execute(job: Job) {
   // await, y TypeScript no lo ve.
   const cancelled = () => job.state === "cancelled";
   try {
-    const { title, items } = await list(job.url);
+    const { title, items, auth } = await list(job.url);
     if (cancelled()) return;
     job.title = title;
     job.items = items;
@@ -172,7 +190,7 @@ async function execute(job: Job) {
     let partial: string[] = [];
     const fail = (item: Item, message: string) => Object.assign(item, { status: "error", error: message });
     const code = await run(
-      buildArgs(job.url, job.format, job.quality, job.dir, sync ? "sync" : "lists"),
+      buildArgs(job.url, job.format, job.quality, job.dir, sync ? "sync" : "lists", auth),
       (line) => {
         const dest = line.match(/(?:Destination|thumbnail \d+ to): (.+)$/);
         if (dest) partial.push(dest[1]);

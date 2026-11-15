@@ -46,6 +46,17 @@ export function parseSourceUrl(input: string): string | null {
   }
 }
 
+/**
+ * Pausas entre pistas cuando se baja con la sesión de YouTube (listas privadas
+ * como «Me gusta»), para no levantar sospechas sobre la cuenta. La sesión en sí
+ * la pone lib/downloads/cookies.ts.
+ */
+export const SESSION_THROTTLE = ["--sleep-interval", "3", "--max-sleep-interval", "8"];
+
+/** Errores de yt-dlp que significan «sin sesión no se ve». */
+export const needsLogin = (msg: string) =>
+  /playlist does not exist|private|sign in|login required|members-only/i.test(msg);
+
 /** Archivo de descargadas de una carpeta sincronizada (lo regenera jobs.ts). */
 export const SYNC_ARCHIVE = ".yt-sync-archive.txt";
 
@@ -66,6 +77,8 @@ export function buildArgs(
   quality: string,
   dir: string,
   layout: "lists" | "sync" = "lists",
+  /** Opciones de sesión (cookies) para listas privadas; ver cookies.ts. */
+  auth: string[] = [],
 ): string[] {
   const media =
     format === "mp3"
@@ -99,6 +112,7 @@ export function buildArgs(
     ...media,
     "--embed-metadata",
     "--embed-thumbnail",
+    ...auth,
     "-o",
     layout === "sync"
       ? `${dir}/%(title)s.%(ext)s`
