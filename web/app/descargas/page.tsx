@@ -336,6 +336,7 @@ function JobCard({ job, onCancel }: { job: Job; onCancel: () => void }) {
         </div>
         {active(job) && <button onClick={onCancel}>Cancelar</button>}
       </div>
+      {job.notice && <p className="muted">{job.notice}</p>}
       {job.error && <p className="error">{job.error}</p>}
       {job.items.length > 0 && (
         <details open={job.state === "running"}>

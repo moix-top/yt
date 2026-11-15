@@ -33,7 +33,9 @@ describe("buildArgs", () => {
 
   it("sincronización: todo en la carpeta, sin numerar, con su archivo de descargadas", () => {
     const a = buildArgs(url, "mp3", "320", "/m/Favoritas", "sync");
-    expect(a[a.indexOf("-o") + 1]).toBe("/m/Favoritas/%(title)s.%(ext)s");
+    expect(a[a.indexOf("-o") + 1]).toBe("%(title)s.%(ext)s");
+    // Se trabaja en una carpeta temporal y solo se mueve lo terminado.
+    expect(a).toEqual(expect.arrayContaining(["-P", "home:/m/Favoritas", "-P", "temp:/m/Favoritas/.yt-sync-tmp"]));
     expect(a[a.indexOf("--download-archive") + 1]).toBe("/m/Favoritas/.yt-sync-archive.txt");
   });
 

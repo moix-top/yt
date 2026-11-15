@@ -59,6 +59,8 @@ export const needsLogin = (msg: string) =>
 
 /** Archivo de descargadas de una carpeta sincronizada (lo regenera jobs.ts). */
 export const SYNC_ARCHIVE = ".yt-sync-archive.txt";
+/** Carpeta temporal de una carpeta sincronizada: ahí trabaja yt-dlp. */
+export const STAGING = ".yt-sync-tmp";
 
 // Marcas en la salida de yt-dlp para seguir cada pista: S = empieza,
 // P = progreso, D = terminada (con su ruta final).
@@ -113,10 +115,11 @@ export function buildArgs(
     "--embed-metadata",
     "--embed-thumbnail",
     ...auth,
-    "-o",
-    layout === "sync"
-      ? `${dir}/%(title)s.%(ext)s`
-      : `${dir}/%(playlist_title|Sueltos)s/%(playlist_index&{:03d} - |)s%(title)s.%(ext)s`,
+    ...(layout === "sync"
+      ? // Se trabaja en la carpeta temporal y solo se mueve a `dir` lo terminado
+        // (ver recovery.ts): un corte de luz no deja archivos a medias.
+        ["-P", `home:${dir}`, "-P", `temp:${dir}/${STAGING}`, "-o", "%(title)s.%(ext)s"]
+      : ["-o", `${dir}/%(playlist_title|Sueltos)s/%(playlist_index&{:03d} - |)s%(title)s.%(ext)s`]),
     "--",
     url,
   ];

@@ -7,15 +7,17 @@
 // Un trabajo de sincronización (lista ↔ carpeta, ver syncs.ts) además lleva en
 // la carpeta un índice `.yt-sync.json` {id de vídeo: archivo}. Antes de cada
 // pasada se genera el archivo de yt-dlp con las pistas cuyo archivo EXISTE: si
-// borras una canción a mano, vuelve a bajarse.
+// borras una canción a mano, vuelve a bajarse. Lo que protege la carpeta de un
+// corte de luz a mitad está en recovery.ts.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { sessionArgs } from "./cookies";
+import { finishFolder, flushFile, prepareFolder, saveIndex, type Index } from "./recovery";
 import { SESSION_THROTTLE, SYNC_ARCHIVE, buildArgs, needsLogin, parseLine, type Format } from "./options";
 
 export type ItemStatus = "pending" | "downloading" | "done" | "skipped" | "error";
@@ -41,6 +43,8 @@ export interface Job {
   createdAt: number;
   /** Sincronización guardada que lanzó este trabajo, si la hay. */
   syncId?: string;
+  /** Aviso informativo, p. ej. lo que se reparó tras un corte. */
+  notice?: string;
 }
 
 export interface JobOptions {
@@ -150,21 +154,12 @@ export function activeJobForSync(syncId: string): Job | undefined {
   );
 }
 
-const INDEX = ".yt-sync.json";
-
-function readIndex(dir: string): Record<string, string> {
-  try {
-    return JSON.parse(readFileSync(path.join(dir, INDEX), "utf8")) as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-/** Pistas que ya están en la carpeta (su archivo existe), y el archivo de yt-dlp a juego. */
-function prepareSync(dir: string): { index: Record<string, string>; present: Set<string> } {
-  const index = readIndex(dir);
-  const present = new Set(Object.keys(index).filter((id) => existsSync(path.join(dir, index[id]))));
-  writeFileSync(path.join(dir, SYNC_ARCHIVE), [...present].map((id) => `youtube ${id}\n`).join(""));
+/** Pistas que ya están (sanas) en la carpeta, y el archivo de yt-dlp a juego. */
+async function prepareSync(job: Job): Promise<{ index: Index; present: Set<string> }> {
+  const { index, report } = await prepareFolder(job.dir, job.format);
+  if (report) job.notice = report;
+  const present = new Set(Object.keys(index));
+  writeFileSync(path.join(job.dir, SYNC_ARCHIVE), [...present].map((id) => `youtube ${id}\n`).join(""));
   return { index, present };
 }
 
@@ -172,6 +167,9 @@ async function execute(job: Job) {
   // Función y no comparación directa: cancelJob cambia el estado durante los
   // await, y TypeScript no lo ve.
   const cancelled = () => job.state === "cancelled";
+  // La carpeta de una sincronización quedó preparada: al acabar (bien,
+  // cancelada o con error, pero no por un corte) se cierra el diario.
+  let prepared = false;
   try {
     const { title, items, auth } = await list(job.url);
     if (cancelled()) return;
@@ -180,7 +178,8 @@ async function execute(job: Job) {
     job.state = "running";
     mkdirSync(job.dir, { recursive: true });
 
-    const sync = job.syncId ? prepareSync(job.dir) : null;
+    const sync = job.syncId ? await prepareSync(job) : null;
+    if (sync) prepared = true;
     if (sync) for (const i of items) if (sync.present.has(i.id)) Object.assign(i, { status: "skipped", pct: 100 });
 
     const byId = new Map(items.map((i) => [i.id, i]));
@@ -215,8 +214,11 @@ async function execute(job: Job) {
           partial = [];
           Object.assign(item, { status: "done", pct: 100 });
           if (sync) {
-            sync.index[item.id] = path.relative(job.dir, ev.file);
-            writeFileSync(path.join(job.dir, INDEX), JSON.stringify(sync.index, null, 1));
+            // Primero a disco el archivo, luego el índice: un corte entre medias
+            // deja un archivo sano fuera del índice, que la próxima pasada adopta.
+            flushFile(ev.file);
+            sync.index[item.id] = { file: path.relative(job.dir, ev.file), at: Date.now() };
+            saveIndex(job.dir, sync.index);
           }
         }
         else if (ev.kind === "skipped") Object.assign(item, { status: "skipped", pct: 100 });
@@ -237,6 +239,14 @@ async function execute(job: Job) {
     if (!cancelled()) {
       job.state = "error";
       job.error = e instanceof Error ? e.message : String(e);
+    }
+  } finally {
+    if (prepared) {
+      try {
+        finishFolder(job.dir);
+      } catch {
+        // Si la carpeta ya no se puede tocar, la próxima pasada lo tratará como un corte.
+      }
     }
   }
 }

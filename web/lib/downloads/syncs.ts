@@ -5,13 +5,14 @@
 // Se guardan en web/.data/sincronizaciones.json (fuera del repo): es una
 // función solo local, igual que las descargas.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { httpError } from "@/lib/http";
 import { activeJobForSync, startJob, type Job } from "./jobs";
 import type { Format } from "./options";
+import { writeJsonAtomic } from "./recovery";
 
 export interface Sync {
   id: string;
@@ -25,6 +26,12 @@ export interface Sync {
   lastRunAt: number | null;
   /** Resumen de la última pasada, p. ej. "3 nuevas, 120 ya estaban, 1 con error". */
   lastResult: string | null;
+  /**
+   * Hay una pasada en marcha. Se guarda en disco: si la app arranca y lo
+   * encuentra sin trabajo en memoria, es que se cortó (apagón, cierre) y se
+   * reanuda sola.
+   */
+  runningSince?: number | null;
 }
 
 const FILE = path.join(process.cwd(), ".data", "sincronizaciones.json");
@@ -39,7 +46,31 @@ function load(): Sync[] {
 
 function save(syncs: Sync[]) {
   mkdirSync(path.dirname(FILE), { recursive: true });
-  writeFileSync(FILE, JSON.stringify(syncs, null, 2));
+  writeJsonAtomic(FILE, syncs);
+}
+
+function update(id: string, patch: Partial<Sync>) {
+  // Se relee: entre medias pudo cambiar o borrarse.
+  const syncs = load();
+  const s = syncs.find((x) => x.id === id);
+  if (!s) return;
+  Object.assign(s, patch);
+  save(syncs);
+}
+
+// Una vez por arranque del servidor: reanudar las pasadas que se cortaron.
+const g = globalThis as unknown as { __ytSyncsResumed?: boolean };
+function resumeInterrupted() {
+  if (g.__ytSyncsResumed) return;
+  g.__ytSyncsResumed = true;
+  for (const s of load()) {
+    if (!s.runningSince || activeJobForSync(s.id)) continue;
+    try {
+      runSync(s.id);
+    } catch {
+      // Si no se puede, queda para el botón.
+    }
+  }
 }
 
 /** Ruta absoluta; admite "~/Música/lista". */
@@ -50,6 +81,7 @@ export function resolveDir(input: string): string | null {
 }
 
 export function listSyncs(): (Sync & { jobId: string | null })[] {
+  resumeInterrupted();
   return load().map((s) => ({ ...s, jobId: activeJobForSync(s.id)?.id ?? null }));
 }
 
@@ -103,18 +135,16 @@ export function runSync(id: string): Job {
   if (!sync) throw httpError(404, "No existe esa sincronización");
   const running = activeJobForSync(id);
   if (running) return running;
+  update(id, { runningSince: Date.now() });
   return startJob(sync.url, sync.format, sync.quality, {
     dir: sync.dir,
     syncId: sync.id,
-    onFinish: (job) => {
-      // Se relee: entre medias pudo cambiar o borrarse.
-      const syncs = load();
-      const s = syncs.find((x) => x.id === id);
-      if (!s) return;
-      if (job.items.length) s.title = job.title;
-      s.lastRunAt = Date.now();
-      s.lastResult = summary(job);
-      save(syncs);
-    },
+    onFinish: (job) =>
+      update(id, {
+        ...(job.items.length ? { title: job.title } : {}),
+        lastRunAt: Date.now(),
+        lastResult: [summary(job), job.notice].filter(Boolean).join(" · "),
+        runningSince: null,
+      }),
   });
 }

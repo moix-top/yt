@@ -61,7 +61,11 @@ En Vercel no existe. Variables en [web/.env.example](web/.env.example).
 **Sincronizar lista ↔ carpeta**: guardas una lista con la carpeta que quieras
 (p. ej. `~/Música/Favoritas`) y la relanzas con un botón. Solo baja lo que no esté ya
 en la carpeta, mirando los archivos que existen de verdad (índice `.yt-sync.json` en la
-carpeta): si borras una canción a mano, vuelve. Nunca borra nada. Las
+carpeta): si borras una canción a mano, vuelve. Nunca borra nada.
+A prueba de cortes de luz ([recovery.ts](web/lib/downloads/recovery.ts)): se descarga en
+`.yt-sync-tmp/` y solo se mueve lo terminado; tras un corte se revisan a fondo los
+archivos, se apartan restos y dañados a `.yt-sync-recuperados/` y la pasada se reanuda
+sola al arrancar la app. Las
 sincronizaciones se guardan en `web/.data/` (fuera del repo).
 
 ## Desarrollo
