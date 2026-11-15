@@ -47,6 +47,7 @@ export default function Descargas() {
   const [syncDir, setSyncDir] = useState("");
   const [syncFormat, setSyncFormat] = useState<Format>("mp3");
   const [syncQuality, setSyncQuality] = useState(DEFAULT_QUALITY.mp3);
+  const [picking, setPicking] = useState(false);
   const [dir, setDir] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -124,6 +125,19 @@ export default function Descargas() {
   const runSync = (id: string) => act(() => send(`/api/syncs/${id}`, "POST"));
   const runAll = () => act(() => Promise.all(syncs.filter((s) => !s.jobId).map((s) => send(`/api/syncs/${s.id}`, "POST"))));
   const forgetSync = (id: string) => act(() => send(`/api/syncs/${id}`, "DELETE"));
+  const openDir = (d: string) => act(() => send("/api/folders", "POST", { action: "open", dir: d }));
+
+  // El selector es una ventana del escritorio que abre el servidor; la
+  // petición espera hasta que se elige o se cierra.
+  async function pickDir() {
+    if (picking) return;
+    setPicking(true);
+    await act(async () => {
+      const { dir: picked } = await send("/api/folders", "POST", { action: "pick", start: syncDir || "~" });
+      if (picked) setSyncDir(picked);
+    });
+    setPicking(false);
+  }
 
   async function cancel(id: string) {
     await fetch(`/api/downloads/${id}`, { method: "DELETE" });
@@ -167,9 +181,14 @@ export default function Descargas() {
                 <input
                   value={syncDir}
                   onChange={(e) => setSyncDir(e.target.value)}
-                  placeholder="Carpeta, p. ej. ~/Música/Favoritas"
+                  // Vacío, un clic abre el selector; con algo escrito se edita a mano.
+                  onClick={() => !syncDir && void pickDir()}
+                  placeholder="Carpeta: pulsa para elegirla, o escribe p. ej. ~/Música/Favoritas"
                   aria-label="Carpeta local"
                 />
+                <button type="button" className="plain" onClick={() => void pickDir()} disabled={picking}>
+                  {picking ? "Eligiendo…" : "Elegir…"}
+                </button>
                 <button type="submit" disabled={sending}>
                   {sending ? "…" : "Guardar y sincronizar"}
                 </button>
@@ -212,6 +231,7 @@ export default function Descargas() {
                       <button onClick={() => void runSync(s.id)} disabled={Boolean(s.jobId)}>
                         Sincronizar
                       </button>
+                      <button onClick={() => void openDir(s.dir)}>Abrir carpeta</button>
                       <button onClick={() => void forgetSync(s.id)} disabled={Boolean(s.jobId)} title="La carpeta y sus archivos no se tocan">
                         Quitar
                       </button>
