@@ -3,14 +3,19 @@
 // sobrevivir a la recarga en caliente de `next dev`): al reiniciar el servidor
 // se pierde el historial, no los archivos, y relanzar una lista solo baja lo que
 // falte gracias al --download-archive.
+//
+// Un trabajo de sincronización (lista ↔ carpeta, ver syncs.ts) además lleva en
+// la carpeta un índice `.yt-sync.json` {id de vídeo: archivo}. Antes de cada
+// pasada se genera el archivo de yt-dlp con las pistas cuyo archivo EXISTE: si
+// borras una canción a mano, vuelve a bajarse.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import { buildArgs, parseLine, type Format } from "./options";
+import { SYNC_ARCHIVE, buildArgs, parseLine, type Format } from "./options";
 
 export type ItemStatus = "pending" | "downloading" | "done" | "skipped" | "error";
 
@@ -33,6 +38,15 @@ export interface Job {
   error?: string;
   items: Item[];
   createdAt: number;
+  /** Sincronización guardada que lanzó este trabajo, si la hay. */
+  syncId?: string;
+}
+
+export interface JobOptions {
+  /** Carpeta de destino; por defecto downloadsDir() con una subcarpeta por lista. */
+  dir?: string;
+  syncId?: string;
+  onFinish?: (job: Job) => void;
 }
 
 interface Store {
@@ -93,8 +107,8 @@ export function listJobs(): Job[] {
   return [...store.jobs.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function startJob(url: string, format: Format, quality: string): Job {
-  const dir = downloadsDir();
+export function startJob(url: string, format: Format, quality: string, opts: JobOptions = {}): Job {
+  const dir = opts.dir ?? downloadsDir();
   const job: Job = {
     id: randomUUID(),
     url,
@@ -105,10 +119,35 @@ export function startJob(url: string, format: Format, quality: string): Job {
     state: "listing",
     items: [],
     createdAt: Date.now(),
+    syncId: opts.syncId,
   };
   store.jobs.set(job.id, job);
-  void execute(job);
+  void execute(job).finally(() => opts.onFinish?.(job));
   return job;
+}
+
+export function activeJobForSync(syncId: string): Job | undefined {
+  return [...store.jobs.values()].find(
+    (j) => j.syncId === syncId && (j.state === "listing" || j.state === "running"),
+  );
+}
+
+const INDEX = ".yt-sync.json";
+
+function readIndex(dir: string): Record<string, string> {
+  try {
+    return JSON.parse(readFileSync(path.join(dir, INDEX), "utf8")) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/** Pistas que ya están en la carpeta (su archivo existe), y el archivo de yt-dlp a juego. */
+function prepareSync(dir: string): { index: Record<string, string>; present: Set<string> } {
+  const index = readIndex(dir);
+  const present = new Set(Object.keys(index).filter((id) => existsSync(path.join(dir, index[id]))));
+  writeFileSync(path.join(dir, SYNC_ARCHIVE), [...present].map((id) => `youtube ${id}\n`).join(""));
+  return { index, present };
 }
 
 async function execute(job: Job) {
@@ -123,6 +162,9 @@ async function execute(job: Job) {
     job.state = "running";
     mkdirSync(job.dir, { recursive: true });
 
+    const sync = job.syncId ? prepareSync(job.dir) : null;
+    if (sync) for (const i of items) if (sync.present.has(i.id)) Object.assign(i, { status: "skipped", pct: 100 });
+
     const byId = new Map(items.map((i) => [i.id, i]));
     // Pista en curso: algunos errores de yt-dlp no dicen de qué vídeo son.
     let current: Item | undefined;
@@ -130,7 +172,7 @@ async function execute(job: Job) {
     let partial: string[] = [];
     const fail = (item: Item, message: string) => Object.assign(item, { status: "error", error: message });
     const code = await run(
-      buildArgs(job.url, job.format, job.quality, job.dir),
+      buildArgs(job.url, job.format, job.quality, job.dir, sync ? "sync" : "lists"),
       (line) => {
         const dest = line.match(/(?:Destination|thumbnail \d+ to): (.+)$/);
         if (dest) partial.push(dest[1]);
@@ -154,6 +196,10 @@ async function execute(job: Job) {
         else if (ev.kind === "done") {
           partial = [];
           Object.assign(item, { status: "done", pct: 100 });
+          if (sync) {
+            sync.index[item.id] = path.relative(job.dir, ev.file);
+            writeFileSync(path.join(job.dir, INDEX), JSON.stringify(sync.index, null, 1));
+          }
         }
         else if (ev.kind === "skipped") Object.assign(item, { status: "skipped", pct: 100 });
       },

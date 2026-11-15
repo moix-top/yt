@@ -58,6 +58,12 @@ misma lista solo baja lo nuevo. Necesita `ffmpeg` y Node; yt-dlp va en `web/.bin
 (`npm run yt-dlp:update`), porque el de apt se queda viejo y YouTube responde 403.
 En Vercel no existe. Variables en [web/.env.example](web/.env.example).
 
+**Sincronizar lista ↔ carpeta**: guardas una lista con la carpeta que quieras
+(p. ej. `~/Música/Favoritas`) y la relanzas con un botón. Solo baja lo que no esté ya
+en la carpeta, mirando los archivos que existen de verdad (índice `.yt-sync.json` en la
+carpeta): si borras una canción a mano, vuelve. Nunca borra nada. Las
+sincronizaciones se guardan en `web/.data/` (fuera del repo).
+
 ## Desarrollo
 
 ```bash

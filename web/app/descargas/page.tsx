@@ -2,10 +2,14 @@
 
 // Descargar listas de YouTube Music (o YouTube) a disco, en MP3 o MP4 con la
 // calidad elegida. Solo en local: lo hace yt-dlp en el propio ordenador.
+//
+// Dos modos: sincronizar una lista con una carpeta (se guarda y se relanza con
+// un botón; solo baja lo que falte) y la descarga suelta de toda la vida.
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Job } from "@/lib/downloads/jobs";
+import type { Sync } from "@/lib/downloads/syncs";
 import { DEFAULT_QUALITY, QUALITIES, downloadsEnabled, type Format } from "@/lib/downloads/options";
 
 const STATE: Record<Job["state"], string> = {
@@ -18,11 +22,31 @@ const STATE: Record<Job["state"], string> = {
 
 const active = (j: Job) => j.state === "listing" || j.state === "running";
 
+const fmtDate = (ms: number) => new Date(ms).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" });
+
+type SyncRow = Sync & { jobId: string | null };
+
+async function send(url: string, method: string, body?: unknown) {
+  const r = await fetch(url, {
+    method,
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`);
+  return j;
+}
+
 export default function Descargas() {
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<Format>("mp3");
   const [quality, setQuality] = useState(DEFAULT_QUALITY.mp3);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [syncs, setSyncs] = useState<SyncRow[]>([]);
+  const [syncUrl, setSyncUrl] = useState("");
+  const [syncDir, setSyncDir] = useState("");
+  const [syncFormat, setSyncFormat] = useState<Format>("mp3");
+  const [syncQuality, setSyncQuality] = useState(DEFAULT_QUALITY.mp3);
   const [dir, setDir] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -34,6 +58,8 @@ export default function Descargas() {
     if (!r.ok) return setError(j.error);
     setJobs(j.jobs);
     setDir(j.dir);
+    const rs = await fetch("/api/syncs");
+    if (rs.ok) setSyncs((await rs.json()).syncs);
   }, []);
 
   // Se consulta cada segundo mientras haya algo en marcha.
@@ -73,6 +99,32 @@ export default function Descargas() {
     }
   }
 
+  async function act(fn: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    await load();
+  }
+
+  async function addSync(e: React.FormEvent) {
+    e.preventDefault();
+    if (!syncUrl.trim() || !syncDir.trim()) return;
+    setSending(true);
+    await act(async () => {
+      await send("/api/syncs", "POST", { url: syncUrl, dir: syncDir, format: syncFormat, quality: syncQuality });
+      setSyncUrl("");
+      setSyncDir("");
+    });
+    setSending(false);
+  }
+
+  const runSync = (id: string) => act(() => send(`/api/syncs/${id}`, "POST"));
+  const runAll = () => act(() => Promise.all(syncs.filter((s) => !s.jobId).map((s) => send(`/api/syncs/${s.id}`, "POST"))));
+  const forgetSync = (id: string) => act(() => send(`/api/syncs/${id}`, "DELETE"));
+
   async function cancel(id: string) {
     await fetch(`/api/downloads/${id}`, { method: "DELETE" });
     void load();
@@ -89,11 +141,88 @@ export default function Descargas() {
         <Link href="/" className="link-muted">← Volver</Link>
       </header>
       <h2>Descargar listas</h2>
+      {error && <p className="error">{error}</p>}
 
       {!downloadsEnabled ? (
         <p className="muted">Las descargas solo funcionan con la web levantada en local (<code>npm run dev</code>).</p>
       ) : (
         <>
+          <section>
+            <h3>Sincronizar una lista con una carpeta</h3>
+            <p className="muted">
+              Se guarda y la vuelves a sincronizar con un botón: solo baja las canciones que no estén ya
+              en la carpeta, y nunca borra nada aunque las quites de la lista.
+            </p>
+            <form className="dl-form" onSubmit={addSync}>
+              <div className="add">
+                <input
+                  value={syncUrl}
+                  onChange={(e) => setSyncUrl(e.target.value)}
+                  placeholder="Enlace de la lista de YouTube Music"
+                  inputMode="url"
+                  aria-label="Enlace de la lista a sincronizar"
+                />
+              </div>
+              <div className="add">
+                <input
+                  value={syncDir}
+                  onChange={(e) => setSyncDir(e.target.value)}
+                  placeholder="Carpeta, p. ej. ~/Música/Favoritas"
+                  aria-label="Carpeta local"
+                />
+                <button type="submit" disabled={sending}>
+                  {sending ? "…" : "Guardar y sincronizar"}
+                </button>
+              </div>
+              <FormatPicker
+                format={syncFormat}
+                quality={syncQuality}
+                onFormat={(f) => {
+                  setSyncFormat(f);
+                  setSyncQuality(DEFAULT_QUALITY[f]);
+                }}
+                onQuality={setSyncQuality}
+              />
+            </form>
+
+            {syncs.length > 1 && (
+              <p>
+                <button onClick={() => void runAll()}>Sincronizar todas</button>
+              </p>
+            )}
+            <ul className="list dl-jobs">
+              {syncs.map((s) => (
+                <li key={s.id} className="token">
+                  <div className="dl-head">
+                    <div className="meta">
+                      <span className="title">{s.title}</span>
+                      <span className="sub">
+                        <code>{s.dir}</code> · {s.format.toUpperCase()} ·{" "}
+                        {QUALITIES[s.format].find((q) => q.id === s.quality)?.label ?? s.quality}
+                      </span>
+                      <span className="sub">
+                        {s.jobId
+                          ? "Sincronizando… (progreso abajo)"
+                          : s.lastRunAt
+                            ? `Última: ${fmtDate(s.lastRunAt)} · ${s.lastResult}`
+                            : "Sin sincronizar todavía"}
+                      </span>
+                    </div>
+                    <span className="actions">
+                      <button onClick={() => void runSync(s.id)} disabled={Boolean(s.jobId)}>
+                        Sincronizar
+                      </button>
+                      <button onClick={() => void forgetSync(s.id)} disabled={Boolean(s.jobId)} title="La carpeta y sus archivos no se tocan">
+                        Quitar
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <h3>Descarga suelta</h3>
           <p className="muted">
             Pega el enlace de una lista, un álbum o una canción de YouTube Music (o YouTube).
             {dir && <> Se guarda en <code>{dir}</code>, una carpeta por lista.</>} Si relanzas una
@@ -113,32 +242,10 @@ export default function Descargas() {
                 {sending ? "…" : "Descargar"}
               </button>
             </div>
-            <div className="dl-options">
-              <div className="seg" role="radiogroup" aria-label="Formato">
-                {(["mp3", "mp4"] as const).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    role="radio"
-                    aria-checked={format === f}
-                    className={format === f ? "on" : ""}
-                    onClick={() => pickFormat(f)}
-                  >
-                    {f === "mp3" ? "MP3 (audio)" : "MP4 (vídeo)"}
-                  </button>
-                ))}
-              </div>
-              <select value={quality} onChange={(e) => setQuality(e.target.value)} aria-label="Calidad">
-                {QUALITIES[format].map((q) => (
-                  <option key={q.id} value={q.id}>
-                    {q.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FormatPicker format={format} quality={quality} onFormat={pickFormat} onQuality={setQuality} />
           </form>
-          {error && <p className="error">{error}</p>}
 
+          {jobs.length > 0 && <h3>En curso y terminadas</h3>}
           {jobs.some((j) => !active(j)) && (
             <p>
               <button onClick={() => void clear()}>Limpiar terminadas</button>
@@ -153,6 +260,39 @@ export default function Descargas() {
         </>
       )}
     </main>
+  );
+}
+
+function FormatPicker(props: {
+  format: Format;
+  quality: string;
+  onFormat: (f: Format) => void;
+  onQuality: (q: string) => void;
+}) {
+  return (
+    <div className="dl-options">
+      <div className="seg" role="radiogroup" aria-label="Formato">
+        {(["mp3", "mp4"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            role="radio"
+            aria-checked={props.format === f}
+            className={props.format === f ? "on" : ""}
+            onClick={() => props.onFormat(f)}
+          >
+            {f === "mp3" ? "MP3 (audio)" : "MP4 (vídeo)"}
+          </button>
+        ))}
+      </div>
+      <select value={props.quality} onChange={(e) => props.onQuality(e.target.value)} aria-label="Calidad">
+        {QUALITIES[props.format].map((q) => (
+          <option key={q.id} value={q.id}>
+            {q.label}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 

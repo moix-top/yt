@@ -31,6 +31,12 @@ describe("buildArgs", () => {
     expect(a).toContain("/d/.descargados-mp3-192.txt");
   });
 
+  it("sincronización: todo en la carpeta, sin numerar, con su archivo de descargadas", () => {
+    const a = buildArgs(url, "mp3", "320", "/m/Favoritas", "sync");
+    expect(a[a.indexOf("-o") + 1]).toBe("/m/Favoritas/%(title)s.%(ext)s");
+    expect(a[a.indexOf("--download-archive") + 1]).toBe("/m/Favoritas/.yt-sync-archive.txt");
+  });
+
   it("MP4 limita la altura y une en mp4", () => {
     const a = buildArgs(url, "mp4", "720", "/d");
     expect(a[a.indexOf("-f") + 1]).toContain("height<=720");

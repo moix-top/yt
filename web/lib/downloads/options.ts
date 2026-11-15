@@ -46,12 +46,27 @@ export function parseSourceUrl(input: string): string | null {
   }
 }
 
+/** Archivo de descargadas de una carpeta sincronizada (lo regenera jobs.ts). */
+export const SYNC_ARCHIVE = ".yt-sync-archive.txt";
+
 // Marcas en la salida de yt-dlp para seguir cada pista: S = empieza,
 // P = progreso, D = terminada (con su ruta final).
 const MARK = "@@";
 
-/** Argumentos de yt-dlp para bajar `url` a `dir` en el formato pedido. */
-export function buildArgs(url: string, format: Format, quality: string, dir: string): string[] {
+/**
+ * Argumentos de yt-dlp para bajar `url` a `dir` en el formato pedido.
+ * - "lists": una subcarpeta por lista, pistas numeradas, un archivo de
+ *   descargadas por formato y calidad.
+ * - "sync": todo directamente en `dir`, sin numerar (el orden de la lista cambia
+ *   y renombraría archivos), con el archivo de descargadas que prepara jobs.ts.
+ */
+export function buildArgs(
+  url: string,
+  format: Format,
+  quality: string,
+  dir: string,
+  layout: "lists" | "sync" = "lists",
+): string[] {
   const media =
     format === "mp3"
       ? ["-x", "--audio-format", "mp3", "--audio-quality", `${quality}K`]
@@ -78,12 +93,16 @@ export function buildArgs(url: string, format: Format, quality: string, dir: str
     "--progress-template", `download:${MARK}P %(info.id)s %(progress._percent_str)s`,
     "--print", `before_dl:${MARK}S %(id)s`,
     "--print", `after_move:${MARK}D %(id)s %(filepath)s`,
-    // Un archivo por formato y calidad: relanzar la lista solo baja lo nuevo.
-    "--download-archive", `${dir}/.descargados-${format}-${quality}.txt`,
+    // Relanzar la lista solo baja lo nuevo.
+    "--download-archive",
+    layout === "sync" ? `${dir}/${SYNC_ARCHIVE}` : `${dir}/.descargados-${format}-${quality}.txt`,
     ...media,
     "--embed-metadata",
     "--embed-thumbnail",
-    "-o", `${dir}/%(playlist_title|Sueltos)s/%(playlist_index&{:03d} - |)s%(title)s.%(ext)s`,
+    "-o",
+    layout === "sync"
+      ? `${dir}/%(title)s.%(ext)s`
+      : `${dir}/%(playlist_title|Sueltos)s/%(playlist_index&{:03d} - |)s%(title)s.%(ext)s`,
     "--",
     url,
   ];
