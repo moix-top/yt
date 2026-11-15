@@ -55,7 +55,15 @@ export function listSyncs(): (Sync & { jobId: string | null })[] {
 
 export function createSync(url: string, dir: string, format: Format, quality: string): Sync {
   const syncs = load();
-  if (syncs.some((s) => s.dir === dir)) throw httpError(409, "Esa carpeta ya está sincronizada con otra lista");
+  const same = syncs.find((s) => s.dir === dir);
+  // La misma lista en la misma carpeta: no es otra, es volver a sincronizarla
+  // (con el formato y la calidad que se hayan elegido ahora).
+  if (same && same.url === url) {
+    Object.assign(same, { format, quality });
+    save(syncs);
+    return same;
+  }
+  if (same) throw httpError(409, `Esa carpeta ya está sincronizada con otra lista: ${same.title}`);
   const sync: Sync = {
     id: randomUUID(),
     url,
